@@ -1,11 +1,17 @@
 import numpy as np
 import pandas as pd
+import time
 
 from panda5gSim.core.scene_graph import (
     getRayLoS_nBuildings, findNPbyTag)
-from panda5gSim.core.helpers import pairwise
+# from panda5gSim.core.helpers import pairwise
 from panda5gSim.core.transformations import TransformProcessor
-from panda5gSim.metrics.writer import Writer
+# from panda5gSim.metrics.writer import Writer
+from panda5gSim.users.antennas import (
+    # theta_bar, phi_bar, psi_, 
+    antenna_gain_dBi,
+    Antenna3GPP)
+
 
 class TransformReader(TransformProcessor):
     # This class updates transforms 
@@ -14,7 +20,8 @@ class TransformReader(TransformProcessor):
         self.RxTags = RxTags
         # find Tx and Rx nodes
         self.findTags()
-        
+        #
+        self.antenna = Antenna3GPP()
         
     def findTags(self):
         self.TxNodes = []
@@ -47,6 +54,98 @@ class TransformReader(TransformProcessor):
                                 los,
                                 n
                                 ]
+                    Transforms.loc[len(Transforms)] = transform
+                except:
+                    print(f"Error in getting transforms {i}, {j}")
+                # transform =  (
+                #             self.RxNodes[i].getTransform(self.TxNodes[j]),
+                #             self.RxNodes[i].getTransform(render), # type: ignore
+                #             self.TxNodes[j].getTransform(render), # type: ignore
+                #             i,j)
+                # Transforms.loc[len(self.Transforms)] = transform
+        return Transforms
+    
+    def getTimedTransformsDF(self):
+        # returns a pandas dataframe of transforms
+        # make a pandas dataframe and update transforms to it
+        cols = ['Time', 'RxNode', 'TxNode',
+                'dRayLoS', 
+                #'nBuildings', #'v_rx', 'v_tx',
+                'phi', 'theta', #'psi', 
+                'd3D',
+                'd2D', 'Gain',
+                # 'Transforms', 
+                'h']
+        phi_3dB = 65
+        theta_3dB = 65
+        Transforms = pd.DataFrame(columns=cols)
+        # update Transformation matrix
+        t = time.time()
+        for i in range(len(self.RxNodes)):
+            for j in range(len(self.TxNodes)):
+                # a Transform = (rx.getTransform(tx), rx.getTransform(), tx.getTransform)
+                # get time 
+                dt = globalClock.getDt()
+                # print(dt)
+                # get the actor's velocity
+                class_rx = self.RxNodes[i].getParent().getPythonTag("subclass")
+                v_rx = round(class_rx.getVelocity().length()/dt,2)
+                class_tx = self.TxNodes[j].getParent().getPythonTag("subclass")
+                v_tx = round(class_tx.getVelocity().length()/dt, 2)
+                # get the actor's name
+                rx_name = self.RxNodes[i].getParent().getPythonTag("subclass").getActorName()
+                tx_name = self.TxNodes[j].getParent().getPythonTag("subclass").getActorName()
+                # print(f"dt: {dt}, v_rx: {v_rx}, v_tx: {v_tx}")
+                #
+                # a, b, g = self.TxNodes[j].getHpr()
+                # ph, th, ps = self.RxNodes[i].getHpr()
+                # theta = theta_bar(a, b, g, ph, th)
+                # phi = phi_bar(a, b, g, ph, th)
+                # psi_ = psi(a, b, g, ph, th)
+                # F_ph_th_ = F_ph_th(np.rad2deg(phi), np.rad2deg(theta), np.rad2deg(psi_), att = 30)
+                phi, theta, ps = self.RxNodes[i].getTransform(self.TxNodes[j]).getHpr()
+                #
+                
+                # F_ph_th_ = antenna_gain_dBi(phi, theta)
+                F_ph_th_ = self.antenna.get_dB_gain(phi, theta) # dBi
+                try:
+                    los, n = getRayLoS_nBuildings(self.TxNodes[j], 
+                                                self.RxNodes[i])
+                    #
+                    if (abs(phi) <= phi_3dB/2 
+                        and abs(theta) <= theta_3dB/2
+                        and los == 1):
+                        dlos = 1
+                    else:
+                        dlos = 0
+                    # 
+                    transform =  {
+                        'Time': t,
+                        'RxNode': rx_name,
+                        'TxNode': tx_name,
+                        # get ray LoS
+                        'RayLoS': los,
+                        'dRayLoS': dlos,
+                        # n,
+                        # v_rx,
+                        # v_tx,
+                        # 
+                        'phi': round(phi,0),
+                        'theta': round(theta,0),
+                        # round(ps,0),
+                        'd3D': round((self.RxNodes[i].getTransform(render).getPos() 
+                               - self.TxNodes[j].getTransform(render).getPos()).length(),0),
+                        'd2D': round((self.RxNodes[i].getTransform(render).getPos() 
+                               - self.TxNodes[j].getTransform(render).getPos()).getXy().length(),0),
+                        'Gain': F_ph_th_,
+                        # 'Transforms',
+                        # (self.RxNodes[i].getTransform(self.TxNodes[j]),
+                        # self.RxNodes[i].getTransform(render), # type: ignore
+                        # self.TxNodes[j].getTransform(render), # type: ignore
+                        # i,j),
+                        # h
+                        'h': round(self.TxNodes[j].getZ(render) - self.RxNodes[i].getZ(render),2)
+                    }
                     Transforms.loc[len(Transforms)] = transform
                 except:
                     print(f"Error in getting transforms {i}, {j}")

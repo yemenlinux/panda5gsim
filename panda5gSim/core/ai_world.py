@@ -65,12 +65,12 @@ class AiWorld(DirectObject):
         self.accept('DestroyAI', self.destroy)
     
     def setAI(self):
-        if not hasattr(self.parent, 'ground_users'):
-            self.parent.genGroundUsers()
-        if not hasattr(self.parent, 'air_users'):
-            self.parent.genAirUsers()
-        if not hasattr(self.parent, 'air_bs'):
-            self.parent.genAirBS()
+        # if not hasattr(self.parent, 'ground_users'):
+        #     self.parent.genGroundUsers()
+        # if not hasattr(self.parent, 'air_users'):
+        #     self.parent.genAirUsers()
+        # if not hasattr(self.parent, 'air_bs'):
+        #     self.parent.genAirBS()
         #
         mobility_mode = SimData['Mobility']['Mobility modes']
         mobility_prob = SimData['Mobility']['Mobility modes probability']
@@ -79,56 +79,62 @@ class AiWorld(DirectObject):
                                             p = mobility_prob)
         #
         mass = 50.0
-        movt_force = 4.5
-        max_force = 5.0
+        movt_force = 30.0
+        max_force = 75.0
+        airBS_force = 30.0 #  N (kg.m/s^2)
+        airut_force = 5.0 #  N (kg.m/s^2)
+        gut_force = 3.0 #  N (kg.m/s^2)
         print(f'OUTPUT_DIR: {OUTPUT_DIR}')
         # ground users
         # for user in self.parent.ground_users:
-        for i in range(len(self.parent.ground_users)):
-            # set mobility mode
-            self.parent.ground_users[i].setMobilityMode(self.mobility_mode[i])
-            self.parent.ground_users[i].AIchar = \
-                AICharacter(self.parent.ground_users[i].name, 
-                            self.parent.ground_users[i].Actor, 
-                            mass, 
-                            movt_force, 
-                            max_force)
-            self.AIworld.addAiChar(self.parent.ground_users[i].AIchar)
-            self.parent.ground_users[i].AIbehaviors = \
-                self.parent.ground_users[i].AIchar.getAiBehaviors()
-            if self.mobility_mode[i] == 'PoI':
-                stay_time = self.gen_n_weighted_pois(2, 6) * self.cycle_time
-            else:
-                stay_time = self.gen_n_weighted_pois(2, 21) * self.cycle_time
-            # print(f'stay time: {stay_time}, {list(stay_time)}')
-            self.parent.ground_users[i].setStayTime(stay_time)
-            indices = np.random.choice(range(len(self.parent.ground_users_locations)), 
-                                    len(stay_time))
-            self.parent.ground_users[i].setPoIs(
-                [self.parent.ground_users_locations[p] for p in indices]
-            )
+        if hasattr(self.parent, 'ground_users'):
+            for i in range(len(self.parent.ground_users)):
+                # set mobility mode
+                self.parent.ground_users[i].setMobilityMode(self.mobility_mode[i])
+                self.parent.ground_users[i].AIchar = \
+                    AICharacter(self.parent.ground_users[i].name, 
+                                self.parent.ground_users[i].Actor, 
+                                mass, 
+                                gut_force*0.5, 
+                                gut_force)
+                                
+                self.AIworld.addAiChar(self.parent.ground_users[i].AIchar)
+                self.parent.ground_users[i].AIbehaviors = \
+                    self.parent.ground_users[i].AIchar.getAiBehaviors()
+                if self.mobility_mode[i] == 'PoI':
+                    stay_time = self.gen_n_weighted_pois(2, 6) * self.cycle_time
+                else:
+                    stay_time = self.gen_n_weighted_pois(2, 21) * self.cycle_time
+                # print(f'stay time: {stay_time}, {list(stay_time)}')
+                self.parent.ground_users[i].setStayTime(stay_time)
+                indices = np.random.choice(range(len(self.parent.ground_users_locations)), 
+                                        len(stay_time))
+                self.parent.ground_users[i].setPoIs(
+                    [self.parent.ground_users_locations[p] for p in indices]
+                )
             
             # air users
-            for i in range(len(self.parent.air_users)):
-                # set mobility mode
-                self.parent.air_users[i].setMobilityMode('Random')
-                self.parent.air_users[i].AIchar = \
-                    AICharacter(self.parent.air_users[i].name, 
-                                self.parent.air_users[i].Actor, 
-                                mass, 
-                                movt_force, 
-                                max_force)
-                self.AIworld.addAiChar(self.parent.air_users[i].AIchar)
-                self.parent.air_users[i].AIbehaviors = \
-                    self.parent.air_users[i].AIchar.getAiBehaviors()
-                stay_time = self.gen_n_weighted_pois(2, 11) * self.cycle_time
-                # print(f'stay time: {stay_time}, {list(stay_time)}')
-                self.parent.air_users[i].setStayTime(stay_time)
-                indices = np.random.choice(range(len(self.parent.air_users_locations)), 
-                                        len(stay_time))
-                self.parent.air_users[i].setPoIs(
-                    [self.parent.air_users_locations[p] for p in indices]
-                )
+            if hasattr(self.parent, 'air_users'):
+                for i in range(len(self.parent.air_users)):
+                    # set mobility mode
+                    self.parent.air_users[i].setMobilityMode('Random')
+                    self.parent.air_users[i].AIchar = \
+                        AICharacter(self.parent.air_users[i].name, 
+                                    self.parent.air_users[i].Actor, 
+                                    mass, 
+                                    airut_force*0.5, 
+                                    airut_force)
+                    self.AIworld.addAiChar(self.parent.air_users[i].AIchar)
+                    self.parent.air_users[i].AIbehaviors = \
+                        self.parent.air_users[i].AIchar.getAiBehaviors()
+                    stay_time = self.gen_n_weighted_pois(2, 11) * self.cycle_time
+                    # print(f'stay time: {stay_time}, {list(stay_time)}')
+                    self.parent.air_users[i].setStayTime(stay_time)
+                    indices = np.random.choice(range(len(self.parent.air_users_locations)), 
+                                            len(stay_time))
+                    self.parent.air_users[i].setPoIs(
+                        [self.parent.air_users_locations[p] for p in indices]
+                    )
             
             # AirBS
             stay_time = self.gen_n_weighted_pois(5, 30) * self.cycle_time
@@ -139,8 +145,9 @@ class AiWorld(DirectObject):
                     AICharacter(self.parent.air_bs[i].name, 
                                 self.parent.air_bs[i].Actor, 
                                 mass, 
-                                movt_force, 
-                                max_force)
+                                airBS_force*0.5, 
+                                airBS_force)
+                                
                 self.AIworld.addAiChar(self.parent.air_bs[i].AIchar)
                 self.parent.air_bs[i].AIbehaviors = \
                     self.parent.air_bs[i].AIchar.getAiBehaviors()

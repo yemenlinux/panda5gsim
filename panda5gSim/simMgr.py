@@ -3,24 +3,27 @@
 import os
 import time
 import numpy as np
+import pandas as pd
 
 # Panda3D modules
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import Thread
 from panda3d.core import (
+    Filename,
     Point3,
     LVector3,
-    NativeWindowHandle,
+    LVecBase3f,
+    # NativeWindowHandle,
     CollisionTraverser, 
-    CollisionHandlerEvent,
+    # CollisionHandlerEvent,
     WindowProperties,
     MeshDrawer,
     NodePath,
     Texture,
-    DirectionalLight,
-    AmbientLight,
-    PointLight,
+    # DirectionalLight,
+    # AmbientLight,
+    # PointLight,
 )
 # from direct.interval.IntervalGlobal import Sequence
 
@@ -39,6 +42,7 @@ from panda5gSim.core.scene_graph import findNPbyTag, has_line_of_sight
 from panda5gSim.metrics.manager import TransMgr
 from panda5gSim.core.mobility_mgr import MobilityMgr
 from panda5gSim.metrics.trans_updator import TransformReader
+from panda5gSim.core.scene_graph import verify_point_is_outdoor
 
 class SimManager(ShowBase):
     def __init__(self, 
@@ -48,6 +52,8 @@ class SimManager(ShowBase):
         for k, v in kwargs.items():
             setattr(self, k, v)
             
+        # base.setFrameRateMeter(True)
+        # base.toggleWireframe()
         self.setup()
         
     def setup(self):
@@ -62,11 +68,13 @@ class SimManager(ShowBase):
         if not hasattr(self, 'street_variance_percentage'):
             self.street_variance_percentage = 0.25
         if not hasattr(self, 'alpha'):
-            self.alpha = round(np.random.uniform(0.1, 0.8),1)
+            self.alpha = 0.5
         if not hasattr(self, 'beta'):
-            self.beta = np.random.randint(100,750)
+            self.beta = 300
         if not hasattr(self, 'gamma'):
-            self.gamma = np.random.randint(8,50)
+            self.gamma = 50
+        if not hasattr(self, 'num_rec_collect'):
+            self.num_rec_collect = 120
         if not hasattr(self, 'scenario'):
             if (self.alpha == 0.5
                 and self.beta == 300
@@ -86,8 +94,9 @@ class SimManager(ShowBase):
                 self.scenario = 'Suburban'
             else:
                 self.scenario = f'Urban_{self.alpha}_{self.beta}_{self.gamma}'
+        # self.environments = [(self.alpha, self.beta, self.gamma)]
         if not hasattr(self, 'num_gUEs'):
-            self.num_gUEs = 20
+            self.num_gUEs = 10
         if not hasattr(self, 'num_airBSs'):
             self.num_airBSs = 2
         if not hasattr(self, 'num_gBSs'):
@@ -98,6 +107,10 @@ class SimManager(ShowBase):
             self.airBS_height = 100
         if not hasattr(self, 'gBS_height'):
             self.gBS_height = 20
+        if not hasattr(self, 'airBS_heights'):
+            self.airBS_heights = np.linspace(50, 1000, 10, endpoint=True, dtype=int)
+            # self.airBS_heights = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+            # self.airBS_heights = [100, 100]
         if not hasattr(self, 'airUE_height'):
             self.airUE_height = 20
         if not hasattr(self, 'gUE_height'):
@@ -120,6 +133,8 @@ class SimManager(ShowBase):
             self.link_direction = 'downlink'
         if not hasattr(self, 'metric_filename'):
             self.metric_filename = 'metrics.csv'
+        if not hasattr(self, 'collect_interval'):
+            self.collect_interval = 1 # seconds
         
         # 
         if not hasattr(self, 'TxPower'):
@@ -131,6 +146,15 @@ class SimManager(ShowBase):
                 self.building_penetration_loss = 25
             else:
                 self.building_penetration_loss = 55
+        if not hasattr(self, 'antenna_phi_3dB'):
+            self.antenna_phi_3dB = 65 # degree
+        if not hasattr(self, 'antenna_theta_3dB'):
+            self.antenna_theta_3dB = 65 # degree
+        # Antenna side lobe attenuation
+        if not hasattr(self, 'antenna_SLA'):
+            self.antenna_SLA = 30 # dB
+        if not hasattr(self, 'antenna_attenuation'):
+            self.antenna_attenuation = 30 # dB
         
             
         if not hasattr(self, 'tx_antenna_gain'):
@@ -153,28 +177,65 @@ class SimManager(ShowBase):
         # self.load_flag = True
         # self.collect_flag = False
         self.loadTerrain()
-        
+        self.final_destroy = False
         
         # # taskMgr.add(self.collect,'Collect_task')
         # self.taskMgr.add(self.simulate, 'Simulate')
-        # self.taskMgr.add(self.exit_watcher,'Exit_watcher', delay=20)
+        self.taskMgr.add(self.exit_watcher,'Exit_watcher', delay=20)
         # CameraControl
         # self.cameraControl = CameraControl()
         
+    def exit_watcher(self, task):
+        if (not self.taskMgr.hasTaskNamed('Collect_task')
+            and len(self.environments) == 0
+            and not self.taskMgr.hasTaskNamed('Simulate')):
+            print('************** Exit watcher **************')
+            print('Simulation is finished. Exiting...')
+            self.final_destroy = True
+            self.destroyScenario()
+            self.userExit()
+            return task.done
+        return task.cont
         
     def destroyScenario(self):
-        # del self.TrasReader
-        # destroy devices
-        for node in self.gNodes:
-            node.removeNode()
-            del node
-        for node in self.aNodes:
-            node.removeNode()
-            del node
-        # destroy buildings
-        for b in self.buildings:
-            b.destroy()
-            del b
+        if hasattr(self, 'city'):
+            # 
+            self.mobMgr.destroy()
+            
+            # self.aiWorld.destroy()
+            # del self.TrasReader
+            # destroy devices
+            # del self.ground_users_locations
+            for node in self.ground_users:
+                node.Actor.cleanup()
+                node.Actor.removeNode()
+                del node
+            for node in self.air_users:
+                node.Actor.cleanup()
+                node.Actor.removeNode()
+                del node
+            for node in self.air_bs:
+                node.Actor.cleanup()
+                node.Actor.removeNode()
+                del node
+            if hasattr(self, 'gBS'):
+                for node in self.gBS:
+                    node.removeNode()
+                    del node
+            # destroy buildings
+            for b in self.buildings:
+                b.destroy()
+                del b
+            #
+            del self.city
+            
+        if self.final_destroy:
+            self.ignoreAll()
+            self.taskMgr.removeTasksMatching('*')
+            self.terrain.removeNode()
+            self.skydome1.removeNode()
+            self.skydome2.removeNode()
+            
         
     def loadTerrain(self, street_map=None):
         self.terrain = loader.loadModel(ASSETS_DIR + '/models/plane.egg')
@@ -210,7 +271,7 @@ class SimManager(ShowBase):
         self.skydome1.setTag('type', 'skydome')
         self.skydome2.setTag('type', 'skydome')
         
-        base.cam.setPos(0, -500, 100)
+        base.cam.setPos(0, -1000, 100)
         base.cam.lookAt(0, -32, 0)
         # base.cam.setHpr(0, -32, 0)
         
@@ -222,7 +283,7 @@ class SimManager(ShowBase):
                     varStWidth = 'Variant',
                     varPercent = 0.25,
                     height_dist = 'Rayleigh',
-                    navMesh_stepSize=20):
+                    navMesh_stepSize=None):
         if not street_map:
             street_map = OUTPUT_DIR + '/street_map.jpg'
         # bounds = SimData['Simulation area boundaries per m']
@@ -254,12 +315,13 @@ class SimManager(ShowBase):
         #
         # generate and save navigation mesh
         self.city.writeNavMesh()
-        for h in [self.airBS_height, self.airUE_height]:
+        # for h in [self.airBS_height, self.airUE_height]:
+        for h in self.airBS_heights:
             # filename = f"navmesh_a{alpha}b{beta}g{gamma}h{h}".replace('.','_')+".csv"
             self.city.writeNavMesh(height = h)
         
     def writeNavMesh(self, 
-                    step = 5, 
+                    step = None, 
                     height = 0):
         if height > 0:
             fname = f'navmesh{height}.csv'
@@ -310,12 +372,31 @@ class SimManager(ShowBase):
               std: {_std}
               """)
         
+    def get_positions(self, height):
+        nav_mesh_dir = os.path.abspath(os.path.join(OUTPUT_DIR, 'navMesh' ))
+        file = f'navmesh_a{self.alpha}b{self.beta}g{self.gamma}h{height}'.replace('.','_')+".csv"
+        nav_mesh_file = os.path.join(nav_mesh_dir, file)
+        print(nav_mesh_file)
+        nav_mesh = pd.read_csv(nav_mesh_file,  skiprows=1)
+        where = np.where(nav_mesh['NULL'] == 0,1,0) & np.where(nav_mesh['NodeType'] == 0,1,0)
+        positions = nav_mesh[where==1][['PosX', 'PosY', 'PosZ']]
+        positions = list(zip(positions['PosX'].to_list(), 
+                             positions['PosY'].to_list(), positions['PosZ'].to_list()))
+        # for p in positions:
+        #     if not verify_point_is_outdoor(p):
+        #         positions.remove(p)
+        # print(f'** Number of positions: {len(positions)}')
+        positions = self.city.getGPositions(height = 0)
+        np.random.shuffle(positions)
+        return positions
+        
     def genGroundUsers(self):
         # ground users
         # self.number_of_gUT = self.calculate_n_gUT()
         # print(f'Number of ground users: {self.number_of_gUT}')
         self.ground_users = []
-        self.ground_users_locations = self.city.getGPositions(height = 0)
+        # self.ground_users_locations = self.city.getGPositions(height = 0)
+        self.ground_users_locations = self.get_positions(0)
         indices = np.random.choice(range(len(self.ground_users_locations)), 
                                     self.num_gUEs)
         positions = [self.ground_users_locations[i] for i in indices]
@@ -326,6 +407,7 @@ class SimManager(ShowBase):
         nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
         for i in range(len(positions)):
             p = positions[i]
+            # print(p)
             param = {
                 'ID': i,
                 'name': f'UE{i}',
@@ -337,11 +419,14 @@ class SimManager(ShowBase):
             ue.setPos(p)
             ue.setNavMesh(nav_mesh_path)
             self.ground_users.append(ue)
+            # self.ground_users[i].Actor.reparentTo(render)
+            # self.ground_users[i].Actor.setPos(LVecBase3f(*p))
     
     def genAirUsers(self):
         self.number_of_airUT = self.num_airUEs
         flight_height = self.airUE_height
-        self.air_users_locations = self.city.getGPositions(height = flight_height)
+        # self.air_users_locations = self.city.getGPositions(height = flight_height)
+        self.air_users_locations = self.get_positions(flight_height)
         indices = np.random.choice(range(len(self.air_users_locations)), self.number_of_airUT)
         positions = [self.air_users_locations[i] for i in indices]
         # print(f'Number of air users: = {len(positions)}')
@@ -358,14 +443,14 @@ class SimManager(ShowBase):
                 'device_type': 'airUT',
             }
             au = UAVuser(**param)
-            au.setPos(p)
+            # au.setPos(p)
             nav_mesh_file = f"navmesh_a{self.alpha}b{self.beta}g{self.gamma}h{flight_height}".replace('.','_')+".csv"
             nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
             au.setNavMesh(nav_mesh_path)
             self.air_users.append(au)
             # add mobility parameters
-            # self.air_users[i].reparentTo(render)
-            # self.air_users[i].Actor.setPos(positions[i])
+            self.air_users[i].Actor.reparentTo(render)
+            self.air_users[i].Actor.setPos(LVecBase3f(*p))
             # self.air_users[i].Actor.setZ(20.0)
     
     def genAirBS(self):
@@ -373,16 +458,19 @@ class SimManager(ShowBase):
         airBS_heights = self.airBS_height
         self.number_of_airBS = self.num_airBSs
         flight_height = self.airBS_height
-        self.air_bs_locations = self.city.getGPositions(height = 0)
+        num_airBSs = len(self.airBS_heights)
+        # self.air_bs_locations = self.city.getGPositions(height = 0)
+        self.air_bs_locations = self.get_positions(flight_height)
         indices = np.random.choice(range(len(self.air_bs_locations)), 
-                                    self.num_airBSs)
+                                    num_airBSs)
         positions = [self.air_bs_locations[i] for i in indices]
         # print(f'Number of air bs: = {len(positions)}')
         a,b,g = self.alpha, self.beta, self.gamma
         
         self.air_bs = []
         for i in range(len(positions)):
-            p = (positions[i][0], positions[i][1], self.airBS_height)
+            p = (positions[i][0], positions[i][1], self.airBS_heights[i])
+            # p = positions[i]
             param = {
                 'ID': i,
                 'name': f'UB{i}',
@@ -391,14 +479,14 @@ class SimManager(ShowBase):
                 'device_type': 'airBS',
             }
             au = UAVBs(**param)
-            au.setPos(p)
-            nav_mesh_file = f"navmesh_a{a}b{b}g{g}h{self.airBS_height}".replace('.','_')+".csv"
+            # au.setPos(render, p)
+            nav_mesh_file = f"navmesh_a{a}b{b}g{g}h{self.airBS_heights[i]}".replace('.','_')+".csv"
             nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
             au.setNavMesh(nav_mesh_path)
             self.air_bs.append(au)
             #
-            # self.air_users[i].reparentTo(render)
-            # self.air_bs[i].Actor.setPos(positions[i])
+            self.air_bs[i].Actor.reparentTo(render)
+            self.air_bs[i].Actor.setPos(p)
     
     def genGroundBS(self):
         self.gBS_pos = []
@@ -444,20 +532,27 @@ class SimManager(ShowBase):
         #
         self.genBuildings()
         self.genGroundUsers()
-        self.genAirUsers()
+        # self.genAirUsers()
+        self.air_users = []
         self.genAirBS()
         # self.genGroundBS()
         # Generate Ai
         self.setAI()
         # self.makeLight()
-        #
+        
+        # Init Mobility manager
         positions = self.city.getGPositions(height = 0)
+        # positions = self.get_positions(0)
+        np.random.shuffle(positions)
         self.mobMgr = MobilityMgr(positions)
+        
+        # Init Transform reader
         # collect transforms ot Tx and Rx
         self.TrasReader = TransformReader(
                 ['gBS_Tx', 'airBS_Tx'],
                 ['gUT_Rx', 'airUT_Rx'])
-        # self.collectTransforms()
+        # 
+        # self.collectMetrics()
         
         # method: automatically
         # timing of changing environment scenario periodically
@@ -467,10 +562,26 @@ class SimManager(ShowBase):
         #                     self.transAutoUpdate, 
         #                     'SimTiming_task')
         
+        # self.taskMgr.add(self.collectMetrics, 'CollectMetrics')
+        self.taskMgr.doMethodLater(self.collect_interval,  
+                            self.collectMetrics, 
+                            'Collect_task')
+        
+    def load_next_scenario(self):
+        if len(self.environments) == 0:
+            return
+        #
+        # np.random.shuffle(self.environments)
+        self.alpha, self.beta, self.gamma = self.environments.pop()
+        self.scenario = f'Urban_{self.alpha}_{self.beta}_{self.gamma}'
+        # self.load_flag = True
+        self.genEnvironment()
+        self.current_rec_collect = 0
+        
     def reGenEnvironment(self):
         self.transMgr.collecting = False
         time.sleep(1.5)
-        self.taskMgr.remove('SimTiming_task')
+        self.taskMgr.remove('Collect_task')
         self.transMgr.destroy()
         # 
         self.mobMgr.destroy()
@@ -492,21 +603,80 @@ class SimManager(ShowBase):
         
     def collectMetrics(self, task):
         #
-        #
-        TransformDF = self.TrasReader.getTransformsDF()
-        env = f'Urban_{self.alpha}_{self.beta}_{self.gamma}'
-        TransformDF['Environment'] = env
-        # time stamp
+        if self.current_rec_collect <= self.num_rec_collect:
+            #
+            TransformDF = self.TrasReader.getTimedTransformsDF()
+            # env = f'Urban_{self.alpha}_{self.beta}_{self.gamma}'
+            TransformDF['Environment'] = self.scenario
+            # TransformDF['Frequency'] = self.freq
+            # write metrics
+            file_dir = OUTPUT_DIR + '/metrics/'
+            filename = Filename(file_dir , self.metric_filename)
+            filename.make_dir()
+            if not os.path.isfile(filename):
+                TransformDF.to_csv(filename, index=False, header=True)
+            else: # else it exists so append without writing the header
+                TransformDF.to_csv(filename,
+                                index=False, mode='a', header=False)
+            # update counter
+            self.current_rec_collect += 1
+            return Task.again
+        else:
+            Task.done
+            
+    def Simulate_task(self, task):
+        # #
+        # Simulation_time_per_scenario = 60
+        # num_environments = 10
+        # if not hasattr(self, 'environments'):
+        #     self.gen_ITU_Environments(self, num_environments)
+        # # set number of records to be collected for each scenario
+        # if not hasattr(self, 'num_rec_collect'):
+        #     dt = globalClock.getDt()
+        #     self.num_rec_collect = int(Simulation_time_per_scenario/dt)
+        #     self.current_rec_collect = 0
+        #     print(f'Time delta: {dt}')
+        #     print(f'num_rec_collect: {self.num_rec_collect}')
+        # load next scenario
+        if not self.taskMgr.hasTaskNamed('Collect_task'):
+            self.destroyScenario()
+            self.load_next_scenario()
+            print(f'** current scenario: {self.alpha}, {self.beta}, {self.gamma}')
+            
         
-        # TransformDF['Frequency'] = self.freq
-        # write metrics
-        file_dir = OUTPUT_DIR + '/metrics/'
-        filename = Filename(file_dir , self.filename)
-        filename.make_dir()
-        if not os.path.isfile(filename):
-            TransformDF.to_csv(filename, index=False, header=True)
-        else: # else it exists so append without writing the header
-            TransformDF.to_csv(filename,
-                            index=False, mode='a', header=False)
+        if len(self.environments) == 0:
+            return Task.done
         
+        return Task.cont
     
+    
+    def gen_ITU_Environments(self, numEnvs=10):
+        # generate ITU-R P.1410-5 environments
+        alpha = np.linspace(0.1, 0.8, numEnvs).round(2)
+        beta = np.linspace(800, 100, numEnvs, dtype=int)
+        gamma = np.linspace(8, 50, numEnvs, dtype=int)
+        self.environments = list(zip(alpha, beta, gamma))
+        # test
+        # self.environments = [(0.5, 300, 50), (0.5, 300, 20),
+        #                      (0.3, 500, 15), (0.1, 750, 8)]
+        
+    def Simulate(self):
+        sim_delay = 5
+        #
+        Simulation_time_per_scenario = 60
+        num_environments = 10
+        if not hasattr(self, 'environments'):
+            self.gen_ITU_Environments(num_environments)
+        # 
+        #
+        dt = globalClock.getDt()
+        # reset collect counter
+        self.current_rec_collect = 0
+        print(f'Time delta: {dt}')
+        # print(f'num_rec_collect: {self.num_rec_collect}')
+        #
+        # load next scenario
+        self.load_next_scenario()
+        self.taskMgr.doMethodLater(sim_delay,
+                                self.Simulate_task, 
+                                'Simulate')

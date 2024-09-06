@@ -82,7 +82,8 @@ class DroneActor(Actor):
         taskMgr.add(self.propellers_run,  'propellers_run') # type: ignore
         
     def propellers_run(self, task):
-        if self.getZ(render) > 0 or self.spin_propeller == True: # type: ignore
+        # if self.getZ(render) > 0 or self.spin_propeller == True: # type: ignore
+        if self.spin_propeller == True: # type: ignore
             prop_vel = 100 #TODO: Get from physics
             for bone in self.joints['propellers'].values():
                 #Rotate with respect to spin direction and thrust

@@ -186,6 +186,7 @@ class Device(NodePath):
         self.Tx.reparentTo(self)
         self.Rx.reparentTo(self)
         self.setTag('type', name)
+        self.setPythonTag("subclass", self)
         self.RxFrom = []
         self.state = 1
         #
@@ -198,7 +199,26 @@ class Device(NodePath):
         self.path_loss = None
         self.SF = None
         self.los = None
-        
+    
+    def getVelocity(self):
+        # get the subclass of parent class
+        parent = self.getParent()
+        if parent.name == 'RightHand':
+            parent = parent.getParent().getParent()
+        #
+        actor = parent.getPythonTag("subclass")
+        # print(parent.name, actor.AIchar.getVelocity())
+        return actor.AIchar.getVelocity()
+    
+    def getActorName(self):
+        # get the subclass of parent class
+        parent = self.getParent()
+        if parent.name == 'RightHand':
+            parent = parent.getParent().getParent()
+        #
+        actor = parent.getPythonTag("subclass")
+        # print(parent.name, actor.AIchar.getVelocity())
+        return actor.name
     
         
 class GroundUE(Device):

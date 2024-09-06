@@ -10,6 +10,7 @@ from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import Thread
 from panda3d.core import (
+    Filename,
     Point3,
     LVector3,
     NativeWindowHandle,

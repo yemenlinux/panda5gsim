@@ -1,6 +1,7 @@
 # Mobility manger class coordinates the movements of al actors in the simulation.
 # MobilityMgr is subclass of DirectObject.
 
+import time
 import numpy as np
 from direct.showbase.DirectObject import DirectObject
 from panda3d.core import (
@@ -11,18 +12,22 @@ from direct.task import Task
 class MobilityMgr(DirectObject):
     def __init__(self, positions):
         DirectObject.__init__(self)
-        
+        print('MobilityMgr init')
         self.positions = positions
+        print(f'Number of positions for mobility: {len(self.positions)}')
         #
         self.status_types = ['disabled', 'done', 'paused']
         #
         # 10% of the positions are airBS positions
-        self.n_airBS_pos = int(len(self.positions) * 0.1)
+        self.n_airBS_pos = int(len(self.positions) * 1)
+        print(f'Number of airBS positions: {self.n_airBS_pos}')
         indices = np.random.choice(
                     range(len(self.positions)), 
                     self.n_airBS_pos)
         self.airBS_pos = [self.positions[p] for p in indices]
         
+        self.airBS_pos = self.positions
+        np.random.shuffle(self.airBS_pos)
         # find all actors in scene
         self.actors = self.findActors()
         
@@ -35,19 +40,24 @@ class MobilityMgr(DirectObject):
         #     print(f'subclass: {a.getPythonTag("subclass").AIbehaviors.behaviorStatus("pathfollow")}')
             
         # update mobility task
+        self.generate_mobility = True
         # Create Metrics task chain
         self.TaskChainName = 'MobilityChain'
         taskMgr.setupTaskChain(self.TaskChainName, numThreads = 2) # type: ignore
-        task_delay = 5
-        taskMgr.doMethodLater(task_delay,  # type: ignore
-                            self.updateMobility, 
-                            f'Update_Mobility',
-                            taskChain = self.TaskChainName)
+        task_delay = 4
+        # taskMgr.doMethodLater(task_delay,  # type: ignore
+        #                     self.updateMobility, 
+        #                     f'Update_Mobility',
+        #                     taskChain = self.TaskChainName)
+        self.addTask(self.updateMobility,
+                    name='Update_Mobility',
+                    taskChain = self.TaskChainName,
+                    delay = task_delay)
         
     def setPositions(self, positions):
         self.positions = positions
         # 10% of the positions are airBS positions
-        self.n_airBS_pos = int(len(self.positions) * 0.1)
+        self.n_airBS_pos = int(len(self.positions) * 0.5)
         indices = np.random.choice(
                     range(len(self.positions)), 
                     self.n_airBS_pos)
@@ -62,6 +72,8 @@ class MobilityMgr(DirectObject):
         return actors
     
     def updateMobility(self, task):
+        if not self.generate_mobility :
+            return task.done
         for actor in self.actors:
             actor_type = actor.getTag('type')
             if actor_type == 'ground_actor':
@@ -78,10 +90,16 @@ class MobilityMgr(DirectObject):
         messenger.send(name, msg) # type: ignore
     
     def updateGroundActor(self, actor):
+        if not self.generate_mobility:
+            return 
         name = actor.name
         D_obj = actor.getPythonTag('subclass')
         if D_obj.AIbehaviors.behaviorStatus("pathfollow") in self.status_types:
-            n = np.random.randint(0, len(self.positions))
+            if len(self.positions)>0:
+                n = np.random.randint(0, len(self.positions))
+            else:
+                print('No positions for ground user mobility')
+                return
             p = self.positions[n]
             a_pos = actor.getPos()
             if a_pos.getX() == p[0] and a_pos.getY() == p[1]:
@@ -93,6 +111,8 @@ class MobilityMgr(DirectObject):
             self.send(f'{name}_move', [target])
         
     def updateAirUEActor(self, actor):
+        if not self.generate_mobility:
+            return 
         name = actor.name
         D_obj = actor.getPythonTag('subclass')
         if D_obj.AIbehaviors.behaviorStatus("pathfollow") in self.status_types:
@@ -109,12 +129,15 @@ class MobilityMgr(DirectObject):
             
         
     def updateAirBSActor(self, actor):
+        if not self.generate_mobility:
+            return 
         name = actor.name
         D_obj = actor.getPythonTag('subclass')
         ai_beh = D_obj.AIbehaviors.behaviorStatus("pathfollow")
         # print(f'{name}, {ai_beh}')
         if ai_beh in self.status_types:
             n = np.random.randint(0, len(self.airBS_pos))
+            np.random.shuffle(self.airBS_pos)
             p = self.airBS_pos[n]
             a_pos = actor.getPos()
             if a_pos.getX() == p[0] and a_pos.getY() == p[1]:
@@ -127,8 +150,13 @@ class MobilityMgr(DirectObject):
             # print(f'{name}, {ai_beh}, {target}')
             
     def destroy(self):
+        print('MobilityMgr destroy')
+        self.generate_mobility = False
+        self.removeAllTasks()
         self.ignoreAll()
+        self.removeAllTasks()
         taskMgr.remove(f'Update_Mobility')
+        time.sleep(1.5)
         self.removeAllTasks()
         # taskMgr.removeTaskChain(self.TaskChainName)
         self.actors = []

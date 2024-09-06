@@ -10,6 +10,21 @@ An implementation of a path loss calculator utilising ETSI TR 138 901 (0.5 - 100
 import numpy as np
 from math import pi, sqrt
 
+from scipy import constants as scipy_constants
+c = scipy_constants.speed_of_light
+
+def FSPL(d3d, frequency_Ghz, Gtx = 0.0, Grx = 0.0):
+    # FSPLn is the free space path loss for a certain receiver, obtained from Friis transmission equation 
+    # A. Saakian, Radio Wave Propagation Fundamentals. Artech House, 2011.
+    f_MHz = frequency_Ghz *1000
+    # refernce FSPL at 1 m, 1 MHz.
+    if d3d == 0:
+        d3d = 1
+    fspl0 = 20 * np.log10(1) + 20 * np.log10(1e6) + 20 * np.log10(4 * np.pi  / scipy_constants.speed_of_light) - Gtx - Grx
+    return 20 * np.log10(d3d) + 20 * np.log10(f_MHz) + fspl0
+
+def test_FSPL():
+    return round(FSPL(10, 28, Gtx = 0.0, Grx = 0.0),2) == 81.39
 
 #
 def get_indoor_distance(distance2d, street_width):

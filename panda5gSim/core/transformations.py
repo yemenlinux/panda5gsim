@@ -144,5 +144,25 @@ class TransformProcessor:
                 self.makeTransformState(inlist[2]),
                 float(inlist[3]),
                 float(inlist[4]))
+    
+    def relative_Ray_Angles(self, transform):
+        """ Get the relative angles between rx and tx
+        that are used in calculating the antenna gain
+        for a directional antenna.
+        """
+        rx = NodePath('rx')
+        tx = NodePath('tx')
+        rx.setTransform(transform[1])
+        tx.setTransform(transform[2])
+        rx.lookAt(tx.getPos())
+        # 
+        # equation (7.1-18), (7.1-19) 3GPP TR 38.900
+        # theta_bar = arccos(cos(phi) sin(theta) sin(beta) + cos(theta) cos(beta)
+        #phi_bar = arg(cos(phi) sin(theta) cos(beta) - cos(theta) sine(beta) + j sin(phi) sine(theta))
+        relative_trans = rx.getTransform(tx)
+        phi, theta, slant = relative_trans.getHpr()
+        return round(phi, 2), round(theta, 2), round(slant, 2)
+    
+    
 
     
