@@ -1,4 +1,5 @@
 import random
+import numpy as np
 from direct.showbase.DirectObject import DirectObject
 
 
@@ -10,6 +11,7 @@ from panda3d.core import (
     TextureStage,
     TransparencyAttrib,
     LPoint3,
+    LVector3,
     Texture,
 )
 
@@ -162,13 +164,13 @@ class CameraControl(DirectObject):
         effectiveness of the occluder culling."""
         self.xray_mode = not self.xray_mode
         if self.xray_mode:
-            for np in self.findNP('building'):
-                np.setColorScale((1, 1, 1, 0.5))
-                np.setTransparency(TransparencyAttrib.MDual)
+            for node in self.findNP('building'):
+                node.setColorScale((1, 1, 1, 0.5))
+                node.setTransparency(TransparencyAttrib.MDual)
         else:
-            for np in self.findNP('building'):
-                np.setColorScaleOff()
-                np.setTransparency(TransparencyAttrib.MNone)
+            for node in self.findNP('building'):
+                node.setColorScaleOff()
+                node.setTransparency(TransparencyAttrib.MNone)
             
 
     def toggle_model_bounds(self):
@@ -190,3 +192,114 @@ class CameraControl(DirectObject):
             for model in show_list:
                 model.hideBounds()
     
+class CameraMgr(DirectObject):
+    def __init__(self, camera):
+        DirectObject.__init__(self)
+        self.camera = camera
+        #
+        self.xray_mode = False
+        self.show_model_bounds = False
+        self.camera_follow_actor = False
+        #
+        self.findActors()
+        #
+        self.accept('x', self.toggle_xray_mode)
+        self.accept('b', self.toggle_model_bounds)
+        self.accept('c', self.changeCamera)
+        self.accept('n', self.nextActor)
+        
+    def findActors(self):
+        self.actors = []
+        actor_types = ['ground_actor', 'air_actor']
+        for nodepath in render.findAllMatches('**'): # type: ignore
+            if nodepath.getTag('type') in actor_types:
+                self.actors.append(nodepath)
+        
+    def findNP(self, np_tag):
+        actor_list = []
+        for obj in render.findAllMatches('**'): # type: ignore
+            if obj.getTag('type') == np_tag:
+                actor_list.append(obj)
+        return actor_list
+    
+    def toggle_xray_mode(self):
+        """Toggle X-ray mode on and off. This is useful for seeing the
+        effectiveness of the occluder culling."""
+        self.xray_mode = not self.xray_mode
+        if self.xray_mode:
+            for node in self.findNP('building'):
+                node.setColorScale((1, 1, 1, 0.5))
+                node.setTransparency(TransparencyAttrib.MDual)
+        else:
+            for node in self.findNP('building'):
+                node.setColorScaleOff()
+                node.setTransparency(TransparencyAttrib.MNone)
+        
+    def toggle_model_bounds(self):
+        """Toggle bounding volumes on and off on the models."""
+        self.show_model_bounds = not self.show_model_bounds
+        find_list = ['building', 'wall', 'roof', 'ground_user', 'air_user']
+        show_list = []
+        
+        for x in find_list:
+            show_list += self.findNP(x)
+        if self.show_model_bounds:
+            # for model in self.findNP('building'):
+            #     model.showBounds()
+            for model in show_list:
+                model.showBounds()
+        else:
+            # for model in self.findNP('building'):
+            #     model.hideBounds()
+            for model in show_list:
+                model.hideBounds()
+    
+    def save_camera_position(self):
+        self.camera_pos = self.camera.getPos()
+        self.camera_hpr = self.camera.getHpr()
+        self.camera_PosHpr = (LVector3(self.camera_pos.getX(),
+                                       self.camera_pos.getY(),
+                                       self.camera_pos.getZ()),
+                              LVector3(self.camera_hpr.getX(),
+                                       self.camera_hpr.getY(),
+                                       self.camera_hpr.getZ()))
+        
+    def nextActor(self):
+        if not self.camera_follow_actor:
+            self.save_camera_position()
+            self.camera_follow_actor = not self.camera_follow_actor
+        if self.camera_follow_actor:
+            n_actor = np.random.randint(0, len(self.actors)-1)
+            
+            self.camera.setPosHpr(0, 0, 0, 0, 0, 0)
+            self.camera.reparentTo(self.actors[n_actor])
+            if self.actors[n_actor].getTag('type') == 'ground_actor':
+                self.camera.setY(self.camera.getY() + 30)
+                self.camera.setZ(self.camera.getZ() + 5)
+                self.camera.setHpr(180,-5,0)
+            else:
+                self.camera.setY(self.camera.getY() + 30)
+                self.camera.setZ(self.camera.getZ() + 60)
+                self.camera.setHpr(180,-60,0)
+                # self.camera.lookAt(self.actors[n_actor])
+    
+    def changeCamera(self):
+        if not hasattr(self, 'camera_PosHpr'):
+            self.save_camera_position()
+        self.camera_follow_actor = not self.camera_follow_actor
+        if self.camera_follow_actor:
+            self.nextActor()
+        else:
+            self.camera.reparentTo(render)
+            self.camera.setPosHpr(*self.camera_PosHpr)
+            
+    def destroy(self):
+        self.ignoreAll()
+        self.camera = None
+        self.actors = None
+        self.xray_mode = None
+        self.show_model_bounds = None
+        self.camera_follow_actor = None
+        self.camera_PosHpr = None
+        self.camera_parent = None
+        del self

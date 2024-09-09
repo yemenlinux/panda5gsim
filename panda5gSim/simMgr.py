@@ -24,12 +24,14 @@ from panda3d.core import (
     # DirectionalLight,
     # AmbientLight,
     # PointLight,
+    TextNode,
 )
+from direct.gui.OnscreenText import OnscreenText
 # from direct.interval.IntervalGlobal import Sequence
 
 # P5gSim modules
 from panda5gSim import ASSETS_DIR, OUTPUT_DIR
-from panda5gSim.camcontrols.cameraControl import CameraControl
+from panda5gSim.camcontrols.cameraControl import CameraMgr
 from panda5gSim.core.streets import UrbanCityMap
 from panda5gSim.core.buildings import Building
 from panda5gSim.users.ut import GroundUser
@@ -165,6 +167,8 @@ class SimManager(ShowBase):
         # Setup window
         self.wp = WindowProperties()
         self.wp.setOrigin(0, 0)
+        self.wp.setIconFilename(ASSETS_DIR + '/textures/icon.png')
+        self.wp.setTitle(self.PANDA_WINDOW_TITLE)
         self.wp.setSize(self.PANDA_WINDOW_WIDTH, self.PANDA_WINDOW_HEIGHT)
         self.openDefaultWindow(props=self.wp)
         # Collision detection
@@ -274,6 +278,7 @@ class SimManager(ShowBase):
         base.cam.setPos(0, -1000, 100)
         base.cam.lookAt(0, -32, 0)
         # base.cam.setHpr(0, -32, 0)
+        self.camera.setPosHpr(0, -1000, 100, 0, -32, 0)
         
     def genStreetMap(self, 
                     alpha = 0.5,
@@ -545,7 +550,10 @@ class SimManager(ShowBase):
         # positions = self.get_positions(0)
         np.random.shuffle(positions)
         self.mobMgr = MobilityMgr(positions)
-        
+        #
+        base.cam.setPos(0, -1000, 100)
+        base.cam.lookAt(0, -32, 0)
+        self.camMgr = CameraMgr(base.cam)
         # Init Transform reader
         # collect transforms ot Tx and Rx
         self.TrasReader = TransformReader(
@@ -577,6 +585,8 @@ class SimManager(ShowBase):
         # self.load_flag = True
         self.genEnvironment()
         self.current_rec_collect = 0
+        #
+        self.update_lables()
         
     def reGenEnvironment(self):
         self.transMgr.collecting = False
@@ -584,6 +594,7 @@ class SimManager(ShowBase):
         self.taskMgr.remove('Collect_task')
         self.transMgr.destroy()
         # 
+        self.camMgr.destroy()
         self.mobMgr.destroy()
         del self.mobMgr
         # self.destroyGBS()
@@ -680,3 +691,32 @@ class SimManager(ShowBase):
         self.taskMgr.doMethodLater(sim_delay,
                                 self.Simulate_task, 
                                 'Simulate')
+        
+    def sort_by_complex_argument(self):
+        result = []
+        for (alpha, beta, gamma) in self.environments:
+            wb = 1000 * np.sqrt(alpha/beta)
+            ws = 1000 /np.sqrt(beta) - wb
+            ec = (ws - wb) + 1j * (ws - gamma)
+            e = np.arctan2(ec.imag, ec.real)
+            result.append([(alpha, beta, gamma), e])
+        #
+        result = sorted(result, key=lambda x: x[1], reverse=True)
+        self.environments = [x[0] for x in result]
+        
+    def update_lables(self):
+        wb = 1000 * np.sqrt(self.alpha/self.beta)
+        ws = 1000 /np.sqrt(self.beta) - wb
+        ec = (ws - wb) + 1j * (ws - self.gamma)
+        e = np.arctan2(ec.imag, ec.real)
+        txt = f'Environment: ({self.alpha}, {self.beta}, {self.gamma}), {round(e, 4)}'
+        if not hasattr(self, 'lable'):
+            self.lable = OnscreenText(
+                text = txt,
+                pos = (-1.1, 0.9),
+                scale = 0.05,
+                fg = (1, 1, 1, 1),
+                align = TextNode.ALeft,
+            )
+        self.lable.setText(txt)
+        

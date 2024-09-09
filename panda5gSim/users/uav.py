@@ -222,10 +222,14 @@ class AirActor(DirectObject):
         #
         # self.AIbehaviors.removeAi('all')
         self.AIbehaviors.pathFindTo(target, "addPath")
-        # self.Actor.loop(self.animation)
+        self.Actor.spin_propeller = True
         # if self.type == 'UB':
         #     print(f'{self.name} move to {target}')
         
+    def init_nav_mesh(self):
+        if not self.load_nav_mesh:
+            self.AIbehaviors.initPathFind(self.nav_mesh_filename)
+            self.load_nav_mesh = True
         
     def toggle_mobility(self, user_id = 'all'):
         if user_id == 'all' or user_id == self.ID:

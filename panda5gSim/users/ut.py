@@ -175,6 +175,10 @@ class GroundUser(DirectObject):
         if user_id == 'all' or user_id == self.ID:
             self.mobility_on = not self.mobility_on
     
+    def init_nav_mesh(self):
+        if not self.load_nav_mesh:
+            self.AIbehaviors.initPathFind(self.nav_mesh_filename)
+            self.load_nav_mesh = True
     def destroy(self):
         self.AIbehaviors.removeAi('all')
         self.ignoreAll()

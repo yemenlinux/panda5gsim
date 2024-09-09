@@ -112,6 +112,11 @@ class AiWorld(DirectObject):
                 self.parent.ground_users[i].setPoIs(
                     [self.parent.ground_users_locations[p] for p in indices]
                 )
+                # 
+                # self.parent.ground_users[i].init_nav_mesh()
+                # if hasattr(self.parent, 'buildings'):
+                #     for building in self.parent.buildings:
+                #         self.parent.ground_users[i].AIbehaviors.addStaticObstacle(building)
             
             # air users
             if hasattr(self.parent, 'air_users'):
@@ -164,6 +169,12 @@ class AiWorld(DirectObject):
                     p = _pois[j]
                     pois.append((p[0], p[1], airbs_height))
                 self.parent.air_bs[i].setPoIs(pois)
+                #
+                # self.parent.air_bs[i].init_nav_mesh()
+                # if hasattr(self.parent, 'buildings'):
+                #     for building in self.parent.buildings:
+                #         self.parent.air_bs[i].AIbehaviors.addStaticObstacle(building)
+            
             
         # update AIWorld
         taskMgr.add(self.AIUpdate, 
