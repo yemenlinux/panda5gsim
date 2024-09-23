@@ -10,7 +10,7 @@ It supports air-to-ground (A2G), ground-to-Air (G2A), air-to-air (A2A) communica
 * Implements the 3GPP 3D channel model and other popular models especially the LoS probability models.
 * Use PandAI for mobility and pathfinding of the UAVs and ground users.
     Can model communication networks in urban environment and simulate the performance of the networks.
-* We used Panda5gSim im sojourn time modeling for UAVs and ground users.
+* We used Panda5gSim in sojourn time modeling for UAVs and ground users.
 
 ## Installation
 1. Install anaconda or miniconda from [miniconda](https://docs.anaconda.com/miniconda/miniconda-install/)
@@ -22,7 +22,18 @@ conda create -n panda5gsim --file requirements.txt
 ```bash
 conda activate panda5gsim
 ```
-4. Run file in examples folder or create your own code.
+4. Clone the repository
+```bash
+git clone https://github.com/yemenlinux/panda5gsim.git
+```
+5. Change directory to the cloned repository
+```bash
+cd panda5gsim
+```
+1. Run a file from examples folder or create your own code. For example, to run the directional line-of-sight with mobility, run the following command:
+```bash
+python examples/directional_los_with_mobility.py
+```
 
 
 
