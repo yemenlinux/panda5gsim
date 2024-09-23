@@ -200,6 +200,8 @@ class CameraMgr(DirectObject):
         self.xray_mode = False
         self.show_model_bounds = False
         self.camera_follow_actor = False
+        self.pf_gideshow = False
+        self.current_actor = None
         #
         self.findActors()
         #
@@ -207,6 +209,7 @@ class CameraMgr(DirectObject):
         self.accept('b', self.toggle_model_bounds)
         self.accept('c', self.changeCamera)
         self.accept('n', self.nextActor)
+        self.accept('p', self.setPfGider)
         
     def findActors(self):
         self.actors = []
@@ -303,3 +306,20 @@ class CameraMgr(DirectObject):
         self.camera_PosHpr = None
         self.camera_parent = None
         del self
+        
+    def setPfGider(self):
+        if len(self.actors) < 6:
+            self.pf_gideshow = not self.pf_gideshow
+            for actor in self.actors:
+                dj = actor.getPythonTag('subclass')
+                dj.AIchar.setPfGuide(self.pf_gideshow)
+            # render.ls()
+        else:
+            if self.current_actor is None :
+                n_actor = np.random.randint(0, len(self.actors)-1)
+                self.current_actor = self.actors[n_actor].getPythonTag('subclass')
+                self.current_actor.AIchar.setPfGuide(True)
+            else:
+                self.current_actor.AIchar.setPfGuide(False)
+                self.current_actor = None
+        
