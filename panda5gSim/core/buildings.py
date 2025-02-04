@@ -115,7 +115,7 @@ class Building(NodePath):
         cNode.setTag('type', 'building')
         self.attachNewNode(cNode)
         
-        # self.setTag('type', 'building')
+        self.setTag('building', 'yes')
         # self.setCollideMask(BitMask32.bit(0))
         # 
         

@@ -732,6 +732,8 @@ class UrbanCityMap:
     def getNavMeshArrays(self, stepSize = None):
         if not stepSize:
             stepSize = self.getGridStepSize()
+        print(f'****** {self.alpha}, {self.beta}, {self.gamma}')
+        print(f'****** Step size: {stepSize}')
         size = self.getAreaXY()
         img =  np.zeros(shape=[size[0], size[1], 3], dtype=np.uint8)
         img[::stepSize, ::stepSize][:int(size[0]/stepSize),:int(size[1]/stepSize)] = self.grid_node_color
@@ -749,11 +751,84 @@ class UrbanCityMap:
         navMeshGrid.sort()
         return navMeshGrid.tolist()
         
-    
+    def createNavMeshDF(self, stepSize):
+        # stepSize = self.getGridStepSize()
+        stepSize = 20
+        #
+        size = int((self.bounding_area[2] - self.bounding_area[0]) / stepSize)
+        print(f'Generated Grid size: {size}')
+        bottomLeftCorner = LVecBase3f(self.bounding_area[0], self.bounding_area[1], 0)
+        # bottomLeftCorner = LVecBase3f(self.bounding_area[0]+self.w + self.s/2, 
+        #                               self.bounding_area[1]+self.w + self.s/2, 0)
+        nullRow = '1,1,0,0,0,0,0,0,0,0'.split(',')
+        # to get neighbours starting anti-clockwise from top left corner.
+        directions = [
+            [1, -1], [1, 0], [1, 1], [0, 1],
+            [-1, 1], [-1, 0], [-1, -1], [0, -1]]
+        #
+        col = ['NULL', 'NodeType', 
+            'GridX', 'GridY', 'Length', 
+            'Width', 'Height', 'PosX', 'PosY', 'PosZ']
+        navDf = pd.DataFrame(columns = col)
+        #
+        # navMeshGrid = self.getNavMeshArrays(stepSize = stepSize)
+        # # navMeshGrid = np.roll(navMeshGrid, shift=1, axis=1)
+        # # navMeshGrid.sort().tolist()
+        # print(f'Number of generated Grid Nodes: {len(navMeshGrid)}')
+        # stepsize = 20
+        n_steps = self.streetMap.shape[0]//stepSize
+        img_grid = self.streetMap[::stepSize, ::stepSize]
+        xx, yy = np.mgrid[0:n_steps, 0:n_steps]
+        navMeshGrid = np.column_stack((xx.ravel(), yy.ravel())).tolist()
+        #
+        def newRow(x, y, xstep, ystep, bottomLeftCorner):
+            return [
+                '0','0', 
+                x, y, xstep, ystep, 0, 
+                x*xstep + bottomLeftCorner.x, 
+                y*ystep + bottomLeftCorner.y, 
+                0 + bottomLeftCorner.z]
+        #
+        def findNeighbors(t):
+            x,y = t
+            #
+            if img_grid[x, y][0] < self.grid_node_color:
+                navDf.loc[len(navDf)] = newRow(x, y, 
+                                    stepSize, stepSize, 
+                                    bottomLeftCorner)
+                for d in directions:
+                    nx = x - d[0]
+                    ny = y - d[1]
+                    if (nx >=0 and ny >=0
+                        and nx < img_grid.shape[0] and ny < img_grid.shape[1]):
+                        if img_grid[nx,ny][0] < self.grid_node_color:
+                            nrow = newRow(nx, ny, 
+                                        stepSize, stepSize, 
+                                        bottomLeftCorner)
+                            nrow[1] = 1
+                            # navDf.loc[len(navDf)] = nrow
+                        else:
+                            nrow = nullRow.copy()
+                            # navDf.loc[len(navDf)] = nullRow.copy()
+                    else:
+                        nrow = nullRow.copy()
+                    navDf.loc[len(navDf)] = nrow
+                return True
+        #
+        
+        #
+        found = list(map(findNeighbors, navMeshGrid))
+        navDf['NULL'] = navDf['NULL'].astype(int)
+        navDf['GridX'] = navDf['GridX'].astype(int)
+        navDf['GridY'] = navDf['GridY'].astype(int)
+        # navDf['Length'] = navDf['Length'].astype(int)
+        # navDf['Width'] = navDf['Width'].astype(int)
+        # navDf['Height'] = navDf['Height'].astype(int)
+        return navDf, size
         
         
             
-    def createNavMeshDF(self, stepSize):
+    def createNavMeshDF_(self, stepSize):
         # stepSize = self.getGridStepSize()
         #
         size = int((self.bounding_area[2] - self.bounding_area[0]) / stepSize)
@@ -815,149 +890,15 @@ class UrbanCityMap:
         # navDf['Height'] = navDf['Height'].astype(int)
         return navDf, size
     
-    def createNavMeshDF_(self, stepSize):
-        # stepSize = self.getGridStepSize()
-        length = self.bounding_area[2] - self.bounding_area[0]
-        steplength = round(self.w + self.s)
-        offset = self.bounding_area[0] + self.w + self.s/2
-        gridsize = int(length/steplength)
-        gridx, gridy = np.mgrid[offset:length/2:steplength, offset:length/2:steplength]
-        gridx = gridx.round(2)
-        gridy = gridy.round(2)
-        #
-        gridxx, gridxy = np.mgrid[0:gridsize, 0:gridsize]
-        navMeshGrid = np.column_stack((gridxx.ravel(), gridxy.ravel()))
-        #
-        nullRow = '1,1,0,0,0,0,0,0,0,0'.split(',')
-        # to get neighbours starting anti-clockwise from top left corner.
-        directions = [
-            [1, -1], [1, 0], [1, 1], [0, 1],
-            [-1, 1], [-1, 0], [-1, -1], [0, -1]]
-        #
-        col = ['NULL', 'NodeType', 
-            'GridX', 'GridY', 'Length', 
-            'Width', 'Height', 'PosX', 'PosY', 'PosZ']
-        navDf = pd.DataFrame(columns = col)
-        #
-        print(f'Number of generated Grid Nodes: {len(navMeshGrid)}')
-        #
-        def newRow(x, y):
-            return [
-                '0','0', 
-                x, y, steplength, steplength, 0, 
-                gridx[x,y], 
-                gridy[x,y], 
-                0 ]
-        #
-        def findNeighbors(t):
-            x,y = t
-            #
-            navDf.loc[len(navDf)] = newRow(x, y)
-            for d in directions:
-                nx = x - d[0]
-                ny = y - d[1]
-                if nx in navMeshGrid and ny in navMeshGrid:
-                    nrow = newRow(nx, ny)
-                    nrow[1] = 1
-                    # navDf.loc[len(navDf)] = nrow
-                else:
-                    nrow = nullRow.copy()
-                    # navDf.loc[len(navDf)] = nullRow.copy()
-                navDf.loc[len(navDf)] = nrow
-            return True
-        #
-        _ = list(map(findNeighbors, navMeshGrid))
-        navDf['NULL'] = navDf['NULL'].astype(int)
-        navDf['GridX'] = navDf['GridX'].astype(int)
-        navDf['GridY'] = navDf['GridY'].astype(int)
-        # navDf['Length'] = navDf['Length'].astype(int)
-        # navDf['Width'] = navDf['Width'].astype(int)
-        # navDf['Height'] = navDf['Height'].astype(int)
-        return navDf, gridsize
     
-    def createNavMeshDF_1(self, stepSize):
-        # stepSize = self.getGridStepSize()
-        length = self.bounding_area[2] - self.bounding_area[0]
-        steplength = (self.w + self.s)//2
-        offset = self.bounding_area[0] 
-        gridsize = int(length/steplength)
-        gridx, gridy = np.mgrid[offset:length/2:steplength, offset:length/2:steplength]
-        gridx = gridx.round(2)
-        gridy = gridy.round(2)
-        #
-        gridxx, gridxy = np.mgrid[0:gridsize, 0:gridsize]
-        temp_navMeshGrid = np.column_stack((gridxx.ravel(), gridxy.ravel()))
-        # 
-        navMeshGrid = []
-        buildingData = self.getBuildingData()
-        for point in temp_navMeshGrid:
-            i,j = point
-            x = gridx[i,j]
-            y = gridy[i,j]
-            add = True
-            for b in buildingData:
-                ((bx, by, bz), width, depth, height) = b
-                if bx <= x and x <= bx + width and by <= y and y <= by + depth:
-                    add = False
-                    break
-            if add:
-                navMeshGrid.append(point)
-        navMeshGrid = np.array(navMeshGrid)
-        #
-        nullRow = '1,1,0,0,0,0,0,0,0,0'.split(',')
-        # to get neighbours starting anti-clockwise from top left corner.
-        directions = [
-            [1, -1], [1, 0], [1, 1], [0, 1],
-            [-1, 1], [-1, 0], [-1, -1], [0, -1]]
-        #
-        col = ['NULL', 'NodeType', 
-            'GridX', 'GridY', 'Length', 
-            'Width', 'Height', 'PosX', 'PosY', 'PosZ']
-        navDf = pd.DataFrame(columns = col)
-        #
-        print(f'Number of generated Grid Nodes: {len(navMeshGrid)}')
-        #
-        def newRow(x, y):
-            return [
-                '0','0', 
-                x, y, steplength, steplength, 0, 
-                gridx[x,y], 
-                gridy[x,y], 
-                0 ]
-        #
-        def findNeighbors(t):
-            x,y = t
-            #
-            navDf.loc[len(navDf)] = newRow(x, y)
-            for d in directions:
-                nx = x - d[0]
-                ny = y - d[1]
-                if nx in navMeshGrid and ny in navMeshGrid:
-                    nrow = newRow(nx, ny)
-                    nrow[1] = 1
-                    # navDf.loc[len(navDf)] = nrow
-                else:
-                    nrow = nullRow.copy()
-                    # navDf.loc[len(navDf)] = nullRow.copy()
-                navDf.loc[len(navDf)] = nrow
-            return True
-        #
-        _ = list(map(findNeighbors, navMeshGrid))
-        navDf['NULL'] = navDf['NULL'].astype(int)
-        navDf['GridX'] = navDf['GridX'].astype(int)
-        navDf['GridY'] = navDf['GridY'].astype(int)
-        # navDf['Length'] = navDf['Length'].astype(int)
-        # navDf['Width'] = navDf['Width'].astype(int)
-        # navDf['Height'] = navDf['Height'].astype(int)
-        return navDf, gridsize
 
     def writeNavMesh(self, height = 0, filename = None, stepSize = None):
-        if not filename:
+        if filename is None:
             filename = f"navmesh_a{self.alpha}b{self.beta}g{self.gamma}h{height}".replace('.','_')+".csv"
             filename0 = f"navmesh_a{self.alpha}b{self.beta}g{self.gamma}h{0}".replace('.','_')+".csv"
         if not stepSize:
-            # stepSize = self.getGridStepSize()
-            stepSize = 15
+            stepSize = self.getGridStepSize()
+            # stepSize = 15
             # print(stepSize)
         # write to file
         navMeshDir = OUTPUT_DIR + '/navMesh/'

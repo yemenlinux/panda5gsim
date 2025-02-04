@@ -43,7 +43,7 @@ class MobilityMgr(DirectObject):
         self.generate_mobility = True
         # Create Metrics task chain
         self.TaskChainName = 'MobilityChain'
-        taskMgr.setupTaskChain(self.TaskChainName, numThreads = 2) # type: ignore
+        taskMgr.setupTaskChain(self.TaskChainName, numThreads = 4) # type: ignore
         task_delay = 4
         # taskMgr.doMethodLater(task_delay,  # type: ignore
         #                     self.updateMobility, 

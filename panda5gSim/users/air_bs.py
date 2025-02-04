@@ -38,7 +38,16 @@ class UAVBs(AirActor):
         self.device = Device(self.device_type, mimo = (1,1))
         self.device.reparentTo(self.Actor)
         #
+        hpr = self.Actor.getHpr()
+        self.device.setHpr(self.Actor, 0,0,0)
+        #
         self.accept(f'{self.type}_setAltitude', self.setAltitude)
+        # set the direction of the UAV task
+        taskMgr.add(self.set_direction, 'set_direction', delay=0.1)
+        
+    def set_direction(self, task):
+        self.Actor.setHpr(self.Actor, 0, 1, 0)
+        return Task.cont
         
     def destroy(self):
         self.device.removeNode()

@@ -35,7 +35,7 @@ from panda5gSim.camcontrols.cameraControl import CameraMgr
 from panda5gSim.core.streets import UrbanCityMap
 from panda5gSim.core.buildings import Building
 from panda5gSim.users.ut import GroundUser
-from panda5gSim.users.uav import UAVuser
+from panda5gSim.users.uav import UAVuser, PointActor
 from panda5gSim.users.air_bs import UAVBs
 from panda5gSim.users.bs import GBS
 from panda5gSim.core.ai_world import AiWorld
@@ -137,10 +137,9 @@ class SimManager(ShowBase):
             self.metric_filename = 'metrics.csv'
         if not hasattr(self, 'collect_interval'):
             self.collect_interval = 1 # seconds
-        
         # 
         if not hasattr(self, 'TxPower'):
-            self.TxPower = 30 # dBm
+            self.TxPower = 43 # dBm
         if not hasattr(self, 'building_penetration_loss'):
             if self.frequency_GHz < 6:
                 self.building_penetration_loss = 20
@@ -157,13 +156,23 @@ class SimManager(ShowBase):
             self.antenna_SLA = 30 # dB
         if not hasattr(self, 'antenna_attenuation'):
             self.antenna_attenuation = 30 # dB
-        
-            
+        if not hasattr(self, 'antenna_down_tilt'):
+            self.antenna_down_tilt = 0 # degree
+        #
         if not hasattr(self, 'tx_antenna_gain'):
             self.tx_antenna_gain = 0
         if not hasattr(self, 'rx_antenna_gain'):
             self.rx_antenna_gain = 0
-        
+        #
+        if not hasattr(self, 'point_actors'):
+            self.point_actors = False
+        # else:
+        #     self.point_actors = True
+        if not hasattr(self, 'building_texture_white'):
+            self.building_texture_white = True
+            
+        if not hasattr(self, 'enable_mobility_manager'):
+            self.enable_mobility_manager = True
         # Setup window
         self.wp = WindowProperties()
         self.wp.setOrigin(0, 0)
@@ -176,7 +185,7 @@ class SimManager(ShowBase):
         base.cTrav = traverser # type: ignore
         
         # method of drawing points 
-        self.render.setRenderModePerspective(True)
+        # self.render.setRenderModePerspective(True)
         # load terrain
         # self.load_flag = True
         # self.collect_flag = False
@@ -200,7 +209,7 @@ class SimManager(ShowBase):
             self.userExit()
             return task.done
         return task.cont
-        
+    
     def destroyScenario(self):
         if hasattr(self, 'city'):
             # 
@@ -239,8 +248,7 @@ class SimManager(ShowBase):
             self.terrain.removeNode()
             self.skydome1.removeNode()
             self.skydome2.removeNode()
-            
-        
+    
     def loadTerrain(self, street_map=None):
         self.terrain = loader.loadModel(ASSETS_DIR + '/models/plane.egg') # type: ignore
         self.terrain.reparentTo(render) # type: ignore
@@ -293,11 +301,7 @@ class SimManager(ShowBase):
             street_map = OUTPUT_DIR + '/street_map.jpg'
         # bounds = SimData['Simulation area boundaries per m']
         bbox = self.sim_boundaries
-        # alpha = SimData['Scenarios'][self.gui.scenario]['Alpha'] # type: ignore
-        # beta = SimData['Scenarios'][self.gui.scenario]['Beta'] # type: ignore
-        # gamma = SimData['Scenarios'][self.gui.scenario]['Gamma'] # type: ignore
-        # scenario = self.gui.scenarioDict[self.gui.scenario]
-        # print(f'Scenario:{self.gui.scenario}, {scenario}')
+        # 
         filename = OUTPUT_DIR + f'/street_map_a{alpha}b{beta}g{gamma}_{varStWidth}'.replace('.','_')+'.jpg'
         self.city = UrbanCityMap(bounding_area = bbox, 
                                 alpha=alpha, 
@@ -307,7 +311,7 @@ class SimManager(ShowBase):
                                 height_dist=height_dist,
                                 stepSize=navMesh_stepSize,
                                 filename=filename)
-        
+        #
         #
         shape = self.city.streetMap.shape
         tex = Texture()
@@ -317,36 +321,36 @@ class SimManager(ShowBase):
         # tex.setRamImage(self.city.buildingsMap)
         # tex = loader.loadTexture(street_map)
         self.terrain.setTexture(tex)
-        #
+        
         # generate and save navigation mesh
         self.city.writeNavMesh()
         # for h in [self.airBS_height, self.airUE_height]:
         for h in self.airBS_heights:
             # filename = f"navmesh_a{alpha}b{beta}g{gamma}h{h}".replace('.','_')+".csv"
             self.city.writeNavMesh(height = h)
-        
-    def writeNavMesh(self, 
-                    step = None, 
-                    height = 0):
-        if height > 0:
-            fname = f'navmesh{height}.csv'
-        else:
-            fname = 'navmesh.csv'
-        fpath = OUTPUT_DIR + '/' + fname
-        if not os.path.exists(fpath):
-            self.city.writeNavMesh(
-                step = step,
-                height = height,
-                filename = fname)
-        
+    
+    def writeNavMesh(self):
+        # generate and save navigation mesh
+        self.city.writeNavMesh()
+        # for h in [self.airBS_height, self.airUE_height]:
+        for h in self.airBS_heights:
+            # filename = f"navmesh_a{alpha}b{beta}g{gamma}h{h}".replace('.','_')+".csv"
+            self.city.writeNavMesh(height = h)
+    
     def genBuildings(self):
         if not hasattr(self, 'city'):
             raise ValueError('CityMap object not found. Call readStreetMap() first.')
         # generate buildings
         buildingData = self.city.getBuildingData()
+        self.buildingData = buildingData
         self.buildings = []
-        b_tex = ['b0.jpg', 'b1.jpg', 'b2.jpg', 'b3.jpg']
-        r_tex = ['r0.jpg', 'r1.jpg', 'r2.jpg']
+        #
+        if self.building_texture_white:
+            b_tex = ['b2.jpg', 'b2.jpg']
+            r_tex = ['r1.jpg', 'r1.jpg']
+        else:
+            b_tex = ['b0.jpg', 'b1.jpg', 'b2.jpg', 'b3.jpg']
+            r_tex = ['r0.jpg', 'r1.jpg', 'r2.jpg']
         height_list = []
         # name, centerPos, width, depth, height, side_texture_path, roof_texture_path
         for i in range(len(buildingData)):
@@ -386,7 +390,8 @@ class SimManager(ShowBase):
         where = np.where(nav_mesh['NULL'] == 0,1,0) & np.where(nav_mesh['NodeType'] == 0,1,0)
         positions = nav_mesh[where==1][['PosX', 'PosY', 'PosZ']]
         positions = list(zip(positions['PosX'].to_list(), 
-                             positions['PosY'].to_list(), positions['PosZ'].to_list()))
+                             positions['PosY'].to_list(), 
+                             positions['PosZ'].to_list()))
         # for p in positions:
         #     if not verify_point_is_outdoor(p):
         #         positions.remove(p)
@@ -419,13 +424,20 @@ class SimManager(ShowBase):
                 'type': 'UE',
                 'device_type': 'gUT',
             }
-            # param.update(SimData['UT defaults'])
-            ue = GroundUser(**param)
-            ue.setPos(p)
-            ue.setNavMesh(nav_mesh_path)
-            self.ground_users.append(ue)
-            # self.ground_users[i].Actor.reparentTo(render)
-            # self.ground_users[i].Actor.setPos(LVecBase3f(*p))
+            # 
+            if self.point_actors:
+                ue = PointActor(**param)
+                ue.setPos(p)
+                ue.setNavMesh(nav_mesh_path)
+                ue.Actor.setRenderModeThickness(5)
+                self.ground_users.append(ue)
+            else:
+                ue = GroundUser(**param)
+                ue.setPos(p)
+                ue.setNavMesh(nav_mesh_path)
+                self.ground_users.append(ue)
+                # self.ground_users[i].Actor.reparentTo(render)
+                # self.ground_users[i].Actor.setPos(LVecBase3f(*p))
     
     def genAirUsers(self):
         self.number_of_airUT = self.num_airUEs
@@ -447,16 +459,25 @@ class SimManager(ShowBase):
                 # 'position': positions[i],
                 'device_type': 'airUT',
             }
-            au = UAVuser(**param)
-            # au.setPos(p)
-            nav_mesh_file = f"navmesh_a{self.alpha}b{self.beta}g{self.gamma}h{flight_height}".replace('.','_')+".csv"
-            nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
-            au.setNavMesh(nav_mesh_path)
-            self.air_users.append(au)
-            # add mobility parameters
-            self.air_users[i].Actor.reparentTo(render) # type: ignore
-            self.air_users[i].Actor.setPos(LVecBase3f(*p))
-            # self.air_users[i].Actor.setZ(20.0)
+            if self.point_actors:
+                au = PointActor(**param)
+                au.setPos(p)
+                nav_mesh_file = f"navmesh_a{self.alpha}b{self.beta}g{self.gamma}h{flight_height}".replace('.','_')+".csv"
+                nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
+                au.setNavMesh(nav_mesh_path)
+                au.Actor.setRenderModeThickness(5)
+                self.air_users.append(au)
+            else:
+                au = UAVuser(**param)
+                # au.setPos(p)
+                nav_mesh_file = f"navmesh_a{self.alpha}b{self.beta}g{self.gamma}h{flight_height}".replace('.','_')+".csv"
+                nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
+                au.setNavMesh(nav_mesh_path)
+                self.air_users.append(au)
+                # add mobility parameters
+                self.air_users[i].Actor.reparentTo(render) # type: ignore
+                self.air_users[i].Actor.setPos(LVecBase3f(*p))
+                # self.air_users[i].Actor.setZ(20.0)
     
     def genAirBS(self):
         # self.number_of_airBS = SimData['Number of air BSs']
@@ -483,15 +504,24 @@ class SimManager(ShowBase):
                 # 'position': positions[i],
                 'device_type': 'airBS',
             }
-            au = UAVBs(**param)
-            # au.setPos(render, p)
-            nav_mesh_file = f"navmesh_a{a}b{b}g{g}h{self.airBS_heights[i]}".replace('.','_')+".csv"
-            nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
-            au.setNavMesh(nav_mesh_path)
-            self.air_bs.append(au)
-            #
-            self.air_bs[i].Actor.reparentTo(render) # type: ignore
-            self.air_bs[i].Actor.setPos(p)
+            if self.point_actors:
+                au = PointActor(**param)
+                au.setPos(p)
+                nav_mesh_file = f"navmesh_a{a}b{b}g{g}h{self.airBS_heights[i]}".replace('.','_')+".csv"
+                nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
+                au.setNavMesh(nav_mesh_path)
+                au.Actor.setRenderModeThickness(5)
+                self.air_bs.append(au)
+            else:
+                au = UAVBs(**param)
+                # au.setPos(render, p)
+                nav_mesh_file = f"navmesh_a{a}b{b}g{g}h{self.airBS_heights[i]}".replace('.','_')+".csv"
+                nav_mesh_path = OUTPUT_DIR + '/navMesh/' + nav_mesh_file
+                au.setNavMesh(nav_mesh_path)
+                self.air_bs.append(au)
+                #
+                self.air_bs[i].Actor.reparentTo(render) # type: ignore
+                self.air_bs[i].Actor.setPos(p)
     
     def genGroundBS(self):
         self.gBS_pos = []
@@ -546,13 +576,14 @@ class SimManager(ShowBase):
         # self.makeLight()
         
         # Init Mobility manager
+        # if self.enable_mobility_manager:
         positions = self.city.getGPositions(height = 0)
         # positions = self.get_positions(0)
         np.random.shuffle(positions)
         self.mobMgr = MobilityMgr(positions)
         #
-        base.cam.setPos(0, -1000, 100) # type: ignore
-        base.cam.lookAt(0, -32, 0) # type: ignore
+        # base.cam.setPos(0, -1000, 100) # type: ignore
+        # base.cam.lookAt(0, -32, 0) # type: ignore
         self.camMgr = CameraMgr(base.cam) # type: ignore
         # Init Transform reader
         # collect transforms ot Tx and Rx
@@ -720,3 +751,4 @@ class SimManager(ShowBase):
             )
         self.lable.setText(txt)
         
+    

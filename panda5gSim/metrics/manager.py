@@ -103,7 +103,7 @@ class TransMgr(DirectObject):
         # self.simMgr = sim_manager
         self.TaskChainName = taskchain
         # Create Metrics task chain
-        taskMgr.setupTaskChain(self.TaskChainName, numThreads = 2) # type: ignore
+        taskMgr.setupTaskChain(self.TaskChainName, numThreads = 4) # type: ignore
         #
         self.collecting = False
         task_delay = 2
@@ -227,7 +227,7 @@ class MetricsManager_old(DirectObject):
         # self.simMgr = sim_manager
         self.TaskChainName = taskchain
         # Create Metrics task chain
-        taskMgr.setupTaskChain(self.TaskChainName, numThreads = 2) # type: ignore
+        taskMgr.setupTaskChain(self.TaskChainName, numThreads = 4) # type: ignore
         #
         self.metricTasks = {}
         self.iterations = {}

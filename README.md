@@ -30,7 +30,7 @@ git clone https://github.com/yemenlinux/panda5gsim.git
 ```bash
 cd panda5gsim
 ```
-1. Run a file from examples folder or create your own code. For example, to run the directional line-of-sight with mobility, run the following command:
+6. Run a file from examples folder or create your own code. For example, to run the directional line-of-sight with mobility, run the following command:
 ```bash
 python examples/directional_los_with_mobility.py
 ```
