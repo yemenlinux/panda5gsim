@@ -1,5 +1,5 @@
 import numpy as np
-np.random.seed(0)
+# np.random.seed(0)
 
 # from panda3d.core import CollisionTraverser,CollisionNode
 # from panda3d.core import CollisionHandlerQueue,CollisionRay

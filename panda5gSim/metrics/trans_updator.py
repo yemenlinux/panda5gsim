@@ -164,7 +164,7 @@ class TransformReader(TransformProcessor):
         if columns is None:
             columns = ['Time', 'RxNode', 'TxNode',
                     'RayLoS', 'dRayLoS', 
-                    #'nBuildings', #'v_rx', 'v_tx',
+                    'nBuildings', 'v_rx', 'v_tx',
                     'phi', 'theta', #'psi', 
                     'd3D',
                     'd2D', 'Gain',

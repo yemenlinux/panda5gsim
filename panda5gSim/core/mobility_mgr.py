@@ -53,6 +53,10 @@ class MobilityMgr(DirectObject):
                     name='Update_Mobility',
                     taskChain = self.TaskChainName,
                     delay = task_delay)
+        self.addTask(self.watch_dog,
+                    name='watch_dog',
+                    taskChain = self.TaskChainName,
+                    delay = 5)
         
     def setPositions(self, positions):
         self.positions = positions
@@ -163,3 +167,19 @@ class MobilityMgr(DirectObject):
         self.positions = []
         self.airBS_pos = []
         self.n_airBS_pos = 0
+        
+    def watch_dog(self, task):
+        if not hasattr(self, 'watch_dict'):
+            self.watch_dict = {}
+            for actor in self.actors:
+                self.watch_dict[actor.name] = actor.getPos()
+            
+        else:
+            for actor in self.actors:
+                if actor.getPos() == self.watch_dict[actor.name]:
+                    n = np.random.randint(0, len(self.positions))
+                    p = self.positions[n]
+                    new_pos = LVecBase3(p[0], p[1], actor.getZ())
+                    actor.setPos(new_pos)
+                    self.watch_dict[actor.name] = actor.getPos()
+        return task.again
