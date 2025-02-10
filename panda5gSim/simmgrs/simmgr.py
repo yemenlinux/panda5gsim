@@ -215,7 +215,8 @@ class SimManager(ShowBase):
             # 
             self.mobMgr.destroy()
             
-            # self.aiWorld.destroy()
+            self.aiWorld.destroy()
+            
             # del self.TrasReader
             # destroy devices
             # del self.ground_users_locations
@@ -241,6 +242,13 @@ class SimManager(ShowBase):
                 del b
             #
             del self.city
+            
+            # find GeomNode parent and remove it
+            for node in render.findAllMatches('dummy'):
+                node.removeNode()
+            for node in render.findAllMatches('parent'):
+                node.removeNode()
+            # print(render.ls())
             
         if self.final_destroy:
             self.ignoreAll()
@@ -591,17 +599,7 @@ class SimManager(ShowBase):
                 ['gBS_Tx', 'airBS_Tx'],
                 ['gUT_Rx', 'airUT_Rx'])
         # 
-        # self.collectMetrics()
-        
-        # method: automatically
-        # timing of changing environment scenario periodically
-        # scenario_delay = 20 # seconds
-        # self.num_iterations = 0
-        # self.taskMgr.doMethodLater(scenario_delay,  
-        #                     self.transAutoUpdate, 
-        #                     'SimTiming_task')
-        
-        # self.taskMgr.add(self.collectMetrics, 'CollectMetrics')
+        # start collecting metrics task
         self.taskMgr.doMethodLater(self.collect_interval,  
                             self.collectMetrics, 
                             'Collect_task')
@@ -667,23 +665,12 @@ class SimManager(ShowBase):
             Task.done
             
     def Simulate_task(self, task):
-        # #
-        # Simulation_time_per_scenario = 60
-        # num_environments = 10
-        # if not hasattr(self, 'environments'):
-        #     self.gen_ITU_Environments(self, num_environments)
-        # # set number of records to be collected for each scenario
-        # if not hasattr(self, 'num_rec_collect'):
-        #     dt = globalClock.getDt()
-        #     self.num_rec_collect = int(Simulation_time_per_scenario/dt)
-        #     self.current_rec_collect = 0
-        #     print(f'Time delta: {dt}')
-        #     print(f'num_rec_collect: {self.num_rec_collect}')
+        # 
         # load next scenario
         if not self.taskMgr.hasTaskNamed('Collect_task'):
             self.destroyScenario()
             self.load_next_scenario()
-            print(f'** current scenario: {self.alpha}, {self.beta}, {self.gamma}')
+            print(f'** Current scenario: {self.alpha}, {self.beta}, {self.gamma}')
             
         
         if len(self.environments) == 0:

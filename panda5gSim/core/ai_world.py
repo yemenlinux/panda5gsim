@@ -189,6 +189,16 @@ class AiWorld(DirectObject):
         return Task.cont
         
     def destroy(self):
+        # remove aichar
+        if hasattr(self.parent, 'ground_users'):
+            for i in range(len(self.parent.ground_users)):
+                self.AIworld.removeAiChar(self.parent.ground_users[i].name)
+        if hasattr(self.parent, 'air_users'):
+            for i in range(len(self.parent.air_users)):
+                self.AIworld.removeAiChar(self.parent.air_users[i].name)
+        if hasattr(self.parent, 'air_bs'):
+            for i in range(len(self.parent.air_bs)):
+                self.AIworld.removeAiChar(self.parent.air_bs[i].name)
         # delete the AI world
         self.ignoreAll()
         # remove tasks

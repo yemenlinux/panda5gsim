@@ -241,7 +241,8 @@ class CameraMgr(DirectObject):
     def toggle_model_bounds(self):
         """Toggle bounding volumes on and off on the models."""
         self.show_model_bounds = not self.show_model_bounds
-        find_list = ['building', 'wall', 'roof', 'ground_user', 'air_user']
+        # find_list = ['building', 'wall', 'roof', 'ground_user', 'air_user']
+        find_list = ['building', 'ground_actor', 'air_actor']
         show_list = []
         
         for x in find_list:

@@ -137,9 +137,15 @@ def getRayLoS_nBuildings(node1, node2):
     #
     #
     if cHandler.getNumEntries() == 0:
-            return (1, cHandler.getNumEntries())
+        result = (1, cHandler.getNumEntries())
+        # remove the collision node
+        cNP.removeNode()
+        return result
+        # return (1, cHandler.getNumEntries())
     else:
-        return (0, cHandler.getNumEntries())
+        result = (0, cHandler.getNumEntries())
+        cNP.removeNode()
+        return result
     
 def verify_point_is_outdoor(point):
     # create nodes
