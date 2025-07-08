@@ -90,3 +90,5 @@ The Panda5gSim components are described in the following paper:
   doi={10.1109/ICETI63946.2024.10777167}}
 ```
 
+## License
+Panda5gSim is licensed under the MIT License for academic use only. For commercial use, please contact the authors.
