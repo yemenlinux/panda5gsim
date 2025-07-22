@@ -209,7 +209,7 @@ class Sim(SimManager):
             varPercent = self.street_variance_percentage,
         )
         #
-        # self.genBuildings()
+        self.genBuildings()
         self.buildings = []
         #
         self.genGroundUsers()
