@@ -51,6 +51,9 @@ for alpha in np.linspace(0.1, 0.7, num).round(2):
 #                     (0.1, 750, 8), ]
 # app.environments = [(0.3, 500, 15)]
 # app.genEnvironment()
+
+app.environments = [[0.7, 500, 22]]
+
 app.sort_by_complex_argument()
 
 app.Simulate()
